@@ -60,3 +60,16 @@ func TestRemoveNodeUpdatesRing(t *testing.T) {
 		t.Fatalf("expected only polaris after removal, got %v", nodes)
 	}
 }
+
+func TestAddNodeDoesNotDuplicateNode(t *testing.T) {
+	ring := NewConsistentHashRing(10)
+	ring.AddNode("polaris")
+	ring.AddNode("polaris")
+
+	if len(ring.nodes) != 1 {
+		t.Fatalf("expected one physical node, got %d", len(ring.nodes))
+	}
+	if len(ring.sortedHashes) != ring.virtualNodes {
+		t.Fatalf("expected %d virtual hashes, got %d", ring.virtualNodes, len(ring.sortedHashes))
+	}
+}
