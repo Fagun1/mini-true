@@ -73,3 +73,30 @@ func TestAddNodeDoesNotDuplicateNode(t *testing.T) {
 		t.Fatalf("expected %d virtual hashes, got %d", ring.virtualNodes, len(ring.sortedHashes))
 	}
 }
+
+func TestGetNodesWrapsToFirstHash(t *testing.T) {
+	ring := NewConsistentHashRing(10)
+	ring.AddNode("polaris")
+	ring.AddNode("sirius")
+
+	firstHash := ring.sortedHashes[0]
+	var key string
+	for i := 0; i < 1000000; i++ {
+		candidate := "wrap-key-" + string(rune(i))
+		if ring.hashKey(candidate) > ring.sortedHashes[len(ring.sortedHashes)-1] {
+			key = candidate
+			break
+		}
+	}
+	if key == "" {
+		t.Fatal("could not find a key beyond the last ring position")
+	}
+
+	nodes, err := ring.GetNodes(key, 1)
+	if err != nil {
+		t.Fatalf("wrap-around lookup failed: %v", err)
+	}
+	if len(nodes) != 1 || ring.ring[firstHash] != nodes[0] {
+		t.Fatalf("expected lookup to wrap to %q, got %v", ring.ring[firstHash], nodes)
+	}
+}

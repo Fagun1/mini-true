@@ -18,6 +18,7 @@ type Router struct {
 }
 
 func New(ring *cluster.ConsistentHashRing) *Router {
+	cluster.SetHashRing(ring)
 	return &Router{ring: ring}
 }
 
@@ -63,8 +64,8 @@ func (r *Router) Route(point models.DataPoint) (string, error) {
 		return "", fmt.Errorf("hash ring is not initialised")
 	}
 	key := point.DeviceID + ":" + point.MetricName
-	nodes, err := r.ring.GetNodes(key, 1)
-	if err != nil || len(nodes) == 0 {
+	nodes := cluster.GetNodesForKey(key, 1)
+	if len(nodes) == 0 {
 		return "", fmt.Errorf("no node available for key %q", key)
 	}
 	return nodes[0], nil
