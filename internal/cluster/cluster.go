@@ -1,6 +1,24 @@
 package cluster
 
-var hashRing = NewConsistentHashRing(150)
+import "sync"
+
+var (
+	hashRing *ConsistentHashRing
+	hooks    []func()
+	hooksMu  sync.RWMutex
+)
+
+func init() {
+	hashRing = NewConsistentHashRing(150)
+}
+
+func RegisterMembershipChangeHook(hook func()) {
+	hooksMu.Lock()
+	defer hooksMu.Unlock()
+	hooks = append(hooks, hook)
+}
+
+
 
 func GetNodesForKey(key string, replicationFactor int) []string {
 	nodes, err := hashRing.GetNodes(key, replicationFactor)
