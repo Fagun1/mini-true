@@ -43,6 +43,7 @@ func (chr *ConsistentHashRing) AddNode(nodeID string) {
 	}
 
 	chr.nodes[nodeID] = true
+
 	for i := 0; i < chr.virtualNodes; i++ {
 		virtualKey := fmt.Sprintf("%s#%d", nodeID, i)
 		hash := chr.hashKey(virtualKey)
@@ -64,6 +65,7 @@ func (chr *ConsistentHashRing) RemoveNode(nodeID string) {
 	}
 
 	delete(chr.nodes, nodeID)
+
 	newHashes := make([]uint32, 0)
 	for _, hash := range chr.sortedHashes {
 		if chr.ring[hash] != nodeID {
@@ -72,8 +74,11 @@ func (chr *ConsistentHashRing) RemoveNode(nodeID string) {
 			delete(chr.ring, hash)
 		}
 	}
+
 	chr.sortedHashes = newHashes
 }
+
+
 
 func (chr *ConsistentHashRing) GetNodes(key string, count int) ([]string, error) {
 	chr.mu.RLock()
@@ -82,20 +87,24 @@ func (chr *ConsistentHashRing) GetNodes(key string, count int) ([]string, error)
 	if len(chr.nodes) == 0 {
 		return nil, fmt.Errorf("no nodes in ring")
 	}
+
 	if count > len(chr.nodes) {
 		count = len(chr.nodes)
 	}
 
 	hash := chr.hashKey(key)
+
 	idx := sort.Search(len(chr.sortedHashes), func(i int) bool {
 		return chr.sortedHashes[i] >= hash
 	})
+
 	if idx == len(chr.sortedHashes) {
 		idx = 0
 	}
 
 	nodesMap := make(map[string]bool)
 	nodes := make([]string, 0, count)
+
 	for len(nodes) < count && len(nodesMap) < len(chr.nodes) {
 		nodeID := chr.ring[chr.sortedHashes[idx]]
 		if !nodesMap[nodeID] {
@@ -104,6 +113,7 @@ func (chr *ConsistentHashRing) GetNodes(key string, count int) ([]string, error)
 		}
 		idx = (idx + 1) % len(chr.sortedHashes)
 	}
+
 	return nodes, nil
 }
 
@@ -115,41 +125,48 @@ func (chr *ConsistentHashRing) GetAllNodes() []string {
 	for nodeID := range chr.nodes {
 		nodes = append(nodes, nodeID)
 	}
+
 	return nodes
 }
 
-// GetNodesSnapshot returns a stable lookup view for one routing operation.
+// GetNodesSnapshot returns a snapshot of nodes for a key, capturing ring version.
+// This ensures consistent routing for a single operation even if ring changes mid-operation.
 func (chr *ConsistentHashRing) GetNodesSnapshot(key string, count int) ([]string, uint64, error) {
 	chr.mu.RLock()
-	sortedHashesCopy := append([]uint32(nil), chr.sortedHashes...)
-	ringCopy := make(map[uint32]string, len(chr.ring))
-	for hash, nodeID := range chr.ring {
-		ringCopy[hash] = nodeID
+	sortedHashesCopy := make([]uint32, len(chr.sortedHashes))
+	copy(sortedHashesCopy, chr.sortedHashes)
+	ringCopy := make(map[uint32]string)
+	for k, v := range chr.ring {
+		ringCopy[k] = v
 	}
-	nodesCopy := make(map[string]bool, len(chr.nodes))
-	for nodeID := range chr.nodes {
-		nodesCopy[nodeID] = true
+	nodesCopy := make(map[string]bool)
+	for k := range chr.nodes {
+		nodesCopy[k] = true
 	}
-	ringVersion := uint64(len(chr.sortedHashes))
+	ringVersion := uint64(len(chr.sortedHashes)) // Use ring size as a version indicator
 	chr.mu.RUnlock()
 
 	if len(nodesCopy) == 0 {
 		return nil, 0, fmt.Errorf("no nodes in ring")
 	}
+
 	if count > len(nodesCopy) {
 		count = len(nodesCopy)
 	}
 
 	hash := chr.hashFunc([]byte(key))
+
 	idx := sort.Search(len(sortedHashesCopy), func(i int) bool {
 		return sortedHashesCopy[i] >= hash
 	})
+
 	if idx == len(sortedHashesCopy) {
 		idx = 0
 	}
 
 	nodesMap := make(map[string]bool)
 	nodes := make([]string, 0, count)
+
 	for len(nodes) < count && len(nodesMap) < len(nodesCopy) {
 		nodeID := ringCopy[sortedHashesCopy[idx]]
 		if !nodesMap[nodeID] {
@@ -158,6 +175,7 @@ func (chr *ConsistentHashRing) GetNodesSnapshot(key string, count int) ([]string
 		}
 		idx = (idx + 1) % len(sortedHashesCopy)
 	}
+
 	return nodes, ringVersion, nil
 }
 
