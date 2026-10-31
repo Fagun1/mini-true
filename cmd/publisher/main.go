@@ -18,14 +18,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/minitrue/internal/logger"
 	"github.com/minitrue/internal/models"
 	"github.com/tarm/serial"
 )
 
 func main() {
+	logger.SetupBeautifulLogging()
+
 	serialPort := flag.String("port", "/dev/tty.usbmodem14101", "serial port for Arduino")
 	baud := flag.Int("baud", 9600, "serial baud rate")
-	ingestURL := flag.String("ingest", envStr("MINITRUE_INGEST_URL", "http://localhost:7070/route"), "router /route endpoint")
+	ingestURL := flag.String("ingest", envStr("MINITRUE_INGEST_URL", "http://localhost:8080/ingest"), "storage node /ingest endpoint or router /route endpoint")
 	sim := flag.Bool("sim", true, "simulate sensors instead of reading serial port")
 	flag.Parse()
 
@@ -65,6 +68,7 @@ func main() {
 		req.Header.Set("Content-Type", "application/json")
 		// X-Write-Role lets the publisher post directly to a storage node /ingest
 		// without needing a separate router process.
+		req.Header.Set("X-Write-Role", "primary")
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			log.Printf("[Publisher] POST error: %v", err)
